@@ -218,10 +218,39 @@
           </section>
 
           <section class="recent" data-anim>
-            <h2 class="recent__title">Lançamentos Recentes</h2>
+            <div class="recent__head">
+              <h2 class="recent__title">Lançamentos Recentes</h2>
+
+              <div class="recent__tools">
+                <div class="field__control recentSearch">
+                  <input
+                    class="input"
+                    id="recentSearch"
+                    type="search"
+                    placeholder="Pesquisar lançamento..."
+                    autocomplete="off"
+                  />
+                  <span class="field__icon" aria-hidden="true"><i class="bi bi-search"></i></span>
+                </div>
+              </div>
+            </div>
             <section class="card recentCard">
               <div class="recentCard__body" id="recentBody">
                 <div class="empty" id="emptyState">Nenhum lançamento cadastrado.</div>
+              </div>
+
+              <div class="recentCard__footer" id="recentPager" hidden>
+                <div class="pagerInfo" id="recentPagerInfo"></div>
+                <div class="pagerBtns">
+                  <button class="miniBtn" id="recentPrev" type="button">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    <span>Anterior</span>
+                  </button>
+                  <button class="miniBtn" id="recentNext" type="button">
+                    <span>Próximo</span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                  </button>
+                </div>
               </div>
             </section>
           </section>

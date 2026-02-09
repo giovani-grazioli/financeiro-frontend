@@ -14,6 +14,8 @@ const parseBRL = (raw) => {
 
 const CATEGORIES_CACHE_PREFIX = 'gippo:categories:v1:';
 
+const RECENT_PAGE_SIZE = 10;
+
 function categoriesCacheKey(type) {
   const t = String(type || 'both').toLowerCase();
   if (!['income', 'expense', 'both'].includes(t)) return `${CATEGORIES_CACHE_PREFIX}both`;
@@ -132,7 +134,10 @@ function setUiEnabled(enabled) {
     document.getElementById('conta'),
     document.getElementById('recorrente'),
     document.getElementById('btnAdicionar'),
-    document.getElementById('btnExport')
+    document.getElementById('btnExport'),
+    document.getElementById('recentSearch'),
+    document.getElementById('recentPrev'),
+    document.getElementById('recentNext')
   ].filter(Boolean);
 
   if (form) form.style.opacity = enabled ? '1' : '.65';
@@ -198,6 +203,18 @@ function toArrayPayload(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && Array.isArray(payload.items)) return payload.items;
   return [];
+}
+
+function getNextCursor(payload) {
+  if (!payload || Array.isArray(payload)) return null;
+  const next = payload.next_cursor ?? payload.nextCursor ?? payload.next ?? null;
+  return next === undefined ? null : next;
+}
+
+function dueTime(it) {
+  const raw = it?.due_date || it?.created_at || 0;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : 0;
 }
 
 function readCategoriesCache(type) {
@@ -333,7 +350,7 @@ function renderRecent(items) {
   const api = window.GippoAPI;
   const frag = document.createDocumentFragment();
 
-  items.slice(0, 10).forEach((it, idx) => {
+  items.forEach((it, idx) => {
     const row = document.createElement('div');
     row.className = 'tx';
     row.style.animationDelay = `${idx * 45}ms`;
@@ -376,6 +393,24 @@ function renderRecent(items) {
   });
 
   body.appendChild(frag);
+}
+
+function renderRecentPager(view, itemsCount) {
+  const pager = document.getElementById('recentPager');
+  const info = document.getElementById('recentPagerInfo');
+  const prevBtn = document.getElementById('recentPrev');
+  const nextBtn = document.getElementById('recentNext');
+
+  if (!pager || !info || !prevBtn || !nextBtn) return;
+
+  const pageIndex = Number(view?.pageIndex) || 0;
+  const hasPrev = pageIndex > 0;
+  const hasNext = view?.nextCursor != null;
+
+  pager.hidden = !(hasPrev || hasNext);
+  prevBtn.disabled = !hasPrev || Boolean(view?.loading);
+  nextBtn.disabled = !hasNext || Boolean(view?.loading);
+  info.textContent = itemsCount ? `Página ${pageIndex + 1}` : '';
 }
 
 function exportData(items) {
@@ -564,20 +599,36 @@ function hydrateNames(items, state) {
   });
 }
 
-async function loadRecent(state) {
+async function loadRecentPage(state, view) {
   const api = window.GippoAPI;
   if (!api) throw new Error('API não carregada');
 
-  const res = await api.listTransactions({ limit: 50 });
-  const list = Array.isArray(res?.items) ? res.items : [];
+  const cursor = view?.cursors?.[view.pageIndex] ?? null;
+  const q = String(view?.q || '').trim();
 
-  list.sort((a, b) => {
-    const da = new Date(a?.due_date || a?.created_at || 0).getTime();
-    const db = new Date(b?.due_date || b?.created_at || 0).getTime();
-    return db - da;
+  const res = await api.listTransactions({
+    limit: RECENT_PAGE_SIZE,
+    cursor: cursor == null ? undefined : cursor,
+    q: q ? q : undefined
   });
 
-  return hydrateNames(list, state);
+  const list = Array.isArray(res?.items) ? res.items : [];
+
+  // "Por ordem": mais recente primeiro (pela due_date).
+  list.sort((a, b) => {
+    const db = dueTime(b);
+    const da = dueTime(a);
+    if (db !== da) return db - da;
+    return Number(b?.id || 0) - Number(a?.id || 0);
+  });
+
+  const hydrated = hydrateNames(list, state);
+
+  const next = getNextCursor(res);
+  view.nextCursor = next;
+  view.cursors[view.pageIndex + 1] = next;
+
+  return hydrated;
 }
 
 async function exportAllTransactions() {
@@ -592,8 +643,9 @@ async function exportAllTransactions() {
     const res = await api.listTransactions({ limit: 200, cursor });
     const batch = Array.isArray(res?.items) ? res.items : [];
     all.push(...batch);
-    if (!res?.next_cursor || !batch.length) break;
-    cursor = res.next_cursor;
+    const next = getNextCursor(res);
+    if (next == null || !batch.length) break;
+    cursor = next;
   }
 
   return all;
@@ -744,6 +796,25 @@ function main() {
   const api = window.GippoAPI;
   const state = { accounts: [], categories: [] };
   let recentItems = [];
+  const recentView = { q: '', pageIndex: 0, cursors: [null], nextCursor: null, loading: false };
+
+  function resetRecentView() {
+    recentView.pageIndex = 0;
+    recentView.cursors = [null];
+    recentView.nextCursor = null;
+  }
+
+  async function loadAndRenderRecent() {
+    recentView.loading = true;
+    renderRecentPager(recentView, recentItems.length);
+    try {
+      recentItems = await loadRecentPage(state, recentView);
+      renderRecent(recentItems);
+    } finally {
+      recentView.loading = false;
+      renderRecentPager(recentView, recentItems.length);
+    }
+  }
 
   setUiEnabled(false);
 
@@ -795,17 +866,59 @@ function main() {
         toast('Recorrência cancelada');
       }
 
-      recentItems = await loadRecent(state);
-      renderRecent(recentItems);
+      // If we deleted the last item of a page, step back one page.
+      if (act === 'delete' && recentItems.length <= 1 && recentView.pageIndex > 0) {
+        recentView.pageIndex -= 1;
+      }
+
+      await loadAndRenderRecent();
       await refreshSaldo();
     } catch (e) {
       toast(e?.message || 'Erro ao atualizar lançamento');
     }
   });
 
+  // Search + pagination
+  const searchEl = document.getElementById('recentSearch');
+  let searchTimer = null;
+  searchEl?.addEventListener('input', () => {
+    if (searchTimer) window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(async () => {
+      recentView.q = String(searchEl.value || '').trim();
+      resetRecentView();
+      try {
+        await loadAndRenderRecent();
+      } catch (e) {
+        toast(e?.message || 'Erro ao pesquisar');
+      }
+    }, 320);
+  });
+
+  document.getElementById('recentPrev')?.addEventListener('click', async () => {
+    if (recentView.loading) return;
+    if (recentView.pageIndex <= 0) return;
+    recentView.pageIndex -= 1;
+    try {
+      await loadAndRenderRecent();
+    } catch (e) {
+      toast(e?.message || 'Erro ao paginar');
+    }
+  });
+
+  document.getElementById('recentNext')?.addEventListener('click', async () => {
+    if (recentView.loading) return;
+    if (recentView.nextCursor == null) return;
+    recentView.pageIndex += 1;
+    try {
+      await loadAndRenderRecent();
+    } catch (e) {
+      toast(e?.message || 'Erro ao paginar');
+    }
+  });
+
   setupForm(state, async () => {
-    recentItems = await loadRecent(state);
-    renderRecent(recentItems);
+    resetRecentView();
+    await loadAndRenderRecent();
     await refreshSaldo();
   });
 
@@ -824,8 +937,8 @@ function main() {
   async function onAuthed() {
     setUiEnabled(true);
     await loadLookups(state);
-    recentItems = await loadRecent(state);
-    renderRecent(recentItems);
+    resetRecentView();
+    await loadAndRenderRecent();
     await refreshSaldo();
   }
 
@@ -833,6 +946,7 @@ function main() {
     setUiEnabled(false);
     recentItems = [];
     renderRecent(recentItems);
+    renderRecentPager(recentView, 0);
     renderSaldoFromCents(0);
     window.GippoAuthGate?.open?.();
   }

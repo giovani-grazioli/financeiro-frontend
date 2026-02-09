@@ -424,9 +424,22 @@ select.input{appearance:none; -webkit-appearance:none; -moz-appearance:none;}
 .btn--cta:hover{background:#2563eb; transform: translateY(-1px)}
 
 .recent{padding-top:6px}
-.recent__title{margin: 8px 2px 12px; font-size:18px; font-weight:900; letter-spacing:-.02em}
+.recent__head{margin: 8px 2px 12px; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.recent__title{margin:0; font-size:18px; font-weight:900; letter-spacing:-.02em}
+.recent__tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.recentSearch{min-width: 260px; max-width: 440px; width: min(440px, 100%);}
 .recentCard{min-height: 260px}
 .recentCard__body{padding: 22px;}
+.recentCard__footer{
+  padding: 0 22px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-top:1px solid #eef2f7;
+}
+.pagerInfo{font-size:12px; color:#64748b; font-weight:800}
+.pagerBtns{display:flex; gap:10px; align-items:center}
 .empty{
   height: 200px;
   display:grid;
