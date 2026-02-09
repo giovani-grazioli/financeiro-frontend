@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestão Financeira - Contas</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="appRoot">
+      <aside class="sidebar" aria-label="Menu lateral">
+        <div class="sidebar__top">
+          <div class="brand">
+            <button
+              class="brand__icon brand__icon--btn"
+              id="btnBrand"
+              type="button"
+              aria-label="Alternar menu"
+            >
+              <i class="bi bi-wallet2" aria-hidden="true"></i>
+            </button>
+            <div class="brand__text">
+              <div class="brand__title">Gestão Financeira</div>
+              <div class="brand__subtitle">Saldo: <span id="saldoHeader">R$ 0,00</span></div>
+            </div>
+            <button class="iconBtn iconBtn--ghost" id="btnSidebar" aria-label="Alternar menu">
+              <i class="bi bi-list"></i>
+            </button>
+          </div>
+
+          <nav class="nav" aria-label="Navegação">
+            <a class="nav__item" href="index.html">
+              <span class="nav__icon"><i class="bi bi-graph-up-arrow"></i></span>
+              <span class="nav__label">Fluxo de Caixa</span>
+            </a>
+            <a class="nav__item" href="lancamentos.html">
+              <span class="nav__icon"><i class="bi bi-currency-dollar"></i></span>
+              <span class="nav__label">Lançamentos</span>
+            </a>
+            <a class="nav__item nav__item--active" href="contas.html">
+              <span class="nav__icon"><i class="bi bi-credit-card"></i></span>
+              <span class="nav__label">Contas</span>
+            </a>
+            <a class="nav__item" href="pendencias.html">
+              <span class="nav__icon"><i class="bi bi-clipboard-check"></i></span>
+              <span class="nav__label">Pendências</span>
+            </a>
+            <a class="nav__item" href="calendario.html">
+              <span class="nav__icon"><i class="bi bi-calendar3"></i></span>
+              <span class="nav__label">Calendário</span>
+            </a>
+            <a class="nav__item" href="recorrencias.html">
+              <span class="nav__icon"><i class="bi bi-arrow-repeat"></i></span>
+              <span class="nav__label">Recorrências</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar__bottom">
+          <div class="totalCard">
+            <div class="totalCard__label">Saldo total</div>
+            <div class="totalCard__value" id="saldoTotal">R$ 0,00</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main" aria-label="Conteúdo principal">
+        <header class="topbar">
+          <div>
+            <h1 class="topbar__title">Contas</h1>
+            <p class="topbar__subtitle">Gerencie suas contas bancárias e saldos</p>
+          </div>
+
+          <div class="topbar__actions">
+            <button class="btn btn--soft" id="btnAuth" type="button">
+              <i class="bi bi-person-check"></i>
+              <span id="btnAuthLabel">Entrar</span>
+            </button>
+
+            <button class="btn btn--primary" id="btnExport" type="button">
+              <i class="bi bi-download"></i>
+              <span>Exportar Dados</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="grid">
+          <section class="card contasCard" data-anim>
+            <div class="card__header">
+              <h2 class="card__title">Nova Conta Bancária</h2>
+            </div>
+
+            <form class="contasForm" id="formConta">
+              <input
+                class="input"
+                id="nomeBanco"
+                name="nomeBanco"
+                placeholder="Nome do banco"
+                autocomplete="off"
+                required
+              />
+
+              <input
+                class="input contasForm__saldo"
+                id="saldoInicial"
+                name="saldoInicial"
+                inputmode="decimal"
+                placeholder="Saldo inicial"
+                required
+              />
+
+              <button class="btn btn--add" type="submit" id="btnAdicionarConta">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <span>Adicionar</span>
+              </button>
+            </form>
+          </section>
+
+          <section class="contasBody" data-anim>
+            <div class="contasEmpty" id="contasEmpty">Nenhuma conta cadastrada. Adicione sua primeira conta acima.</div>
+
+            <section class="card contasList" id="contasList" hidden>
+              <div class="contasList__body" id="contasListBody"></div>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="runtime-config.js"></script>
+    <script src="api.js"></script>
+    <script src="auth-gate.js"></script>
+    <script src="contas.js"></script>
+  </body>
+</html>

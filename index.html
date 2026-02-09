@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestão Financeira - Fluxo de Caixa</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="appRoot">
+      <aside class="sidebar" aria-label="Menu lateral">
+        <div class="sidebar__top">
+          <div class="brand">
+            <button class="brand__icon brand__icon--btn" id="btnBrand" type="button" aria-label="Alternar menu">
+              <i class="bi bi-wallet2" aria-hidden="true"></i>
+            </button>
+            <div class="brand__text">
+              <div class="brand__title">Gestão Financeira</div>
+              <div class="brand__subtitle">Saldo: <span id="saldoHeader">R$ 0,00</span></div>
+            </div>
+            <button class="iconBtn iconBtn--ghost" id="btnSidebar" aria-label="Alternar menu">
+              <i class="bi bi-list"></i>
+            </button>
+          </div>
+
+          <nav class="nav" aria-label="Navegação">
+            <a class="nav__item nav__item--active" href="index.html">
+              <span class="nav__icon"><i class="bi bi-graph-up-arrow"></i></span>
+              <span class="nav__label">Fluxo de Caixa</span>
+            </a>
+            <a class="nav__item" href="lancamentos.html">
+              <span class="nav__icon"><i class="bi bi-currency-dollar"></i></span>
+              <span class="nav__label">Lançamentos</span>
+            </a>
+            <a class="nav__item" href="contas.html">
+              <span class="nav__icon"><i class="bi bi-credit-card"></i></span>
+              <span class="nav__label">Contas</span>
+            </a>
+            <a class="nav__item" href="pendencias.html">
+              <span class="nav__icon"><i class="bi bi-clipboard-check"></i></span>
+              <span class="nav__label">Pendências</span>
+            </a>
+            <a class="nav__item" href="calendario.html">
+              <span class="nav__icon"><i class="bi bi-calendar3"></i></span>
+              <span class="nav__label">Calendário</span>
+            </a>
+            <a class="nav__item" href="recorrencias.html">
+              <span class="nav__icon"><i class="bi bi-arrow-repeat"></i></span>
+              <span class="nav__label">Recorrências</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar__bottom">
+          <div class="totalCard">
+            <div class="totalCard__label">Saldo total</div>
+            <div class="totalCard__value" id="saldoTotal">R$ 0,00</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main" aria-label="Conteúdo principal">
+        <header class="topbar">
+          <div>
+            <h1 class="topbar__title">Bem-vindo!</h1>
+            <p class="topbar__subtitle">Visão geral da sua gestão financeira</p>
+          </div>
+
+          <div class="topbar__actions">
+            <button class="btn btn--soft" id="btnAuth" type="button">
+              <i class="bi bi-person-check"></i>
+              <span id="btnAuthLabel">Entrar</span>
+            </button>
+
+            <button class="btn btn--primary" id="btnExport" type="button">
+              <i class="bi bi-download"></i>
+              <span>Exportar Dados</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="grid">
+          <div class="cardsRow">
+            <article class="card stat" data-anim>
+              <div class="stat__head">
+                <div class="stat__label">Saldo Atual</div>
+                <div class="stat__chip" aria-hidden="true"><i class="bi bi-wallet2"></i></div>
+              </div>
+              <div class="stat__value" id="cardSaldo">R$ 0,00</div>
+            </article>
+
+            <article class="card stat" data-anim>
+              <div class="stat__head">
+                <div class="stat__label">Projeção 3 Meses</div>
+                <div class="stat__chip" aria-hidden="true"><i class="bi bi-graph-up"></i></div>
+              </div>
+              <div class="stat__value" id="cardProj3">R$ 0,00</div>
+            </article>
+
+            <article class="card stat" data-anim>
+              <div class="stat__head">
+                <div class="stat__label">Projeção 6 Meses</div>
+                <div class="stat__chip" aria-hidden="true"><i class="bi bi-graph-up"></i></div>
+              </div>
+              <div class="stat__value" id="cardProj6">R$ 0,00</div>
+            </article>
+          </div>
+
+          <div class="contentRow">
+            <section class="card tableCard" data-anim>
+              <div class="card__header">
+                <h2 class="card__title">Projeção de Fluxo de Caixa - Próximos 6 Meses</h2>
+              </div>
+
+              <div class="tableWrap" role="region" aria-label="Tabela de projeção" tabindex="0">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>MÊS</th>
+                      <th class="align-right">ENTRADAS</th>
+                      <th class="align-right">SAÍDAS</th>
+                      <th class="align-right">SALDO LÍQUIDO</th>
+                      <th class="align-right">SALDO ACUMULADO</th>
+                    </tr>
+                  </thead>
+                  <tbody id="projectionBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside class="rightCol">
+              <section class="card quick" data-anim>
+                <div class="card__header">
+                  <h2 class="card__title">Acesso Rápido</h2>
+                </div>
+
+                <div class="quick__list">
+                  <button class="quickItem" type="button" id="quickNovo">
+                    <span class="quickItem__icon"><i class="bi bi-currency-dollar"></i></span>
+                    <span class="quickItem__label">Novo Lançamento</span>
+                    <span class="quickItem__chev" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+                  </button>
+
+                  <button class="quickItem" type="button" id="quickContas">
+                    <span class="quickItem__icon"><i class="bi bi-credit-card"></i></span>
+                    <span class="quickItem__label">Gerenciar Contas</span>
+                    <span class="quickItem__chev" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+                  </button>
+
+                  <button class="quickItem" type="button" id="quickRelatorios">
+                    <span class="quickItem__icon"><i class="bi bi-graph-up"></i></span>
+                    <span class="quickItem__label">Ver Relatórios</span>
+                    <span class="quickItem__chev" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+                  </button>
+
+                  <button class="quickItem" type="button" id="quickCalendario">
+                    <span class="quickItem__icon"><i class="bi bi-calendar3"></i></span>
+                    <span class="quickItem__label">Calendário</span>
+                    <span class="quickItem__chev" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="card insight" data-anim>
+                <div class="insight__header">
+                  <div class="insight__badge" aria-hidden="true"><i class="bi bi-graph-up"></i></div>
+                  <div>
+                    <div class="insight__kicker">Insights</div>
+                    <div class="insight__title" id="insightTitle">Fluxo de Caixa Estável</div>
+                    <div class="insight__desc" id="insightDesc">
+                      Suas projeções indicam estabilidade financeira nos próximos meses.
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="runtime-config.js"></script>
+    <script src="api.js"></script>
+    <script src="auth-gate.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
