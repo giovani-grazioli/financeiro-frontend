@@ -291,6 +291,10 @@
     return await request('/transactions', { method: 'POST', auth: true, body });
   }
 
+  async function createTransfer(body) {
+    return await request('/transfers', { method: 'POST', auth: true, body });
+  }
+
   async function createRecurringSeries({ base, frequency, interval_count, start_date, end_date, months_ahead }) {
     return await request('/transactions/recurring-series', {
       method: 'POST',
@@ -373,6 +377,7 @@
     deleteAccount,
     listTransactions,
     createTransaction,
+    createTransfer,
     createRecurringSeries,
     listRecurringSeries,
     extendRecurringSeries,

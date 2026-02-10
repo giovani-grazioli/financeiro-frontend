@@ -95,7 +95,11 @@ function toast(text) {
 }
 
 function setupRipple() {
-  const rippleTargets = [document.getElementById('btnExport'), document.getElementById('btnAdicionarConta')].filter(Boolean);
+  const rippleTargets = [
+    document.getElementById('btnExport'),
+    document.getElementById('btnAdicionarConta'),
+    document.getElementById('btnTransferir')
+  ].filter(Boolean);
 
   rippleTargets.forEach((el) => {
     el.classList.add('ripple');
@@ -112,6 +116,37 @@ function setupRipple() {
       window.setTimeout(() => el.classList.remove('rippling'), 680);
     });
   });
+}
+
+function fillSelect(selectEl, items, { placeholder } = {}) {
+  if (!selectEl) return;
+  const current = String(selectEl.value || '');
+  selectEl.innerHTML = '';
+
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = placeholder || 'Selecione';
+  selectEl.appendChild(ph);
+
+  for (const it of items) {
+    const opt = document.createElement('option');
+    opt.value = String(it.id);
+    opt.textContent = String(it.name);
+    selectEl.appendChild(opt);
+  }
+
+  if (current && [...selectEl.options].some((o) => o.value === current)) {
+    selectEl.value = current;
+  }
+}
+
+function populateTransferAccounts(accounts) {
+  const from = document.getElementById('transferFrom');
+  const to = document.getElementById('transferTo');
+  if (!from || !to) return;
+
+  fillSelect(from, accounts, { placeholder: 'Selecione a conta de origem' });
+  fillSelect(to, accounts, { placeholder: 'Selecione a conta de destino' });
 }
 
 function renderList(items) {
@@ -204,10 +239,24 @@ function setUiEnabled(enabled) {
   const nome = document.getElementById('nomeBanco');
   const saldo = document.getElementById('saldoInicial');
   const btn = document.getElementById('btnAdicionarConta');
+  const transferForm = document.getElementById('formTransfer');
+  const transferFrom = document.getElementById('transferFrom');
+  const transferTo = document.getElementById('transferTo');
+  const transferAmount = document.getElementById('transferAmount');
+  const transferDate = document.getElementById('transferDate');
+  const transferBtn = document.getElementById('btnTransferir');
+
   if (form) form.style.opacity = enabled ? '1' : '.65';
   if (nome) nome.disabled = !enabled;
   if (saldo) saldo.disabled = !enabled;
   if (btn) btn.disabled = !enabled;
+
+  if (transferForm) transferForm.style.opacity = enabled ? '1' : '.65';
+  if (transferFrom) transferFrom.disabled = !enabled;
+  if (transferTo) transferTo.disabled = !enabled;
+  if (transferAmount) transferAmount.disabled = !enabled;
+  if (transferDate) transferDate.disabled = !enabled;
+  if (transferBtn) transferBtn.disabled = !enabled;
 }
 
 function setupForm(items, onCreated) {
@@ -246,6 +295,56 @@ async function fetchAndRender(items) {
   items.push(...(Array.isArray(accounts) ? accounts : []));
   renderSaldoFromAccounts(items);
   renderList(items);
+  populateTransferAccounts(items);
+}
+
+function setupTransferForm(items, onTransfer) {
+  const form = document.getElementById('formTransfer');
+  const from = document.getElementById('transferFrom');
+  const to = document.getElementById('transferTo');
+  const amount = document.getElementById('transferAmount');
+  const dateEl = document.getElementById('transferDate');
+  if (!form || !from || !to || !amount || !dateEl) return;
+
+  // Default date: today
+  if (!dateEl.value) {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    dateEl.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  amount.addEventListener('blur', () => {
+    const n = parseBRL(amount.value);
+    if (!Number.isFinite(n)) return;
+    amount.value = (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+  });
+
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+
+    const fromId = Number(from.value);
+    const toId = Number(to.value);
+    const valueReais = parseBRL(String(amount.value || ''));
+    const transferDate = String(dateEl.value || '').trim();
+
+    if (!Number.isFinite(fromId) || !fromId) return toast('Selecione a conta de origem');
+    if (!Number.isFinite(toId) || !toId) return toast('Selecione a conta de destino');
+    if (fromId === toId) return toast('Origem e destino devem ser diferentes');
+    if (!Number.isFinite(valueReais) || valueReais <= 0) return toast('Informe um valor válido');
+    if (!transferDate) return toast('Informe uma data válida');
+
+    onTransfer?.({
+      from_account_id: fromId,
+      to_account_id: toId,
+      amount_reais: valueReais,
+      transfer_date: transferDate,
+      reset: () => {
+        amount.value = '';
+      }
+    });
+  });
 }
 
 async function main() {
@@ -292,6 +391,27 @@ async function main() {
       toast('Conta adicionada');
     } catch (e) {
       toast(e?.message || 'Erro ao criar conta');
+    }
+  });
+
+  setupTransferForm(items, async ({ from_account_id, to_account_id, amount_reais, transfer_date, reset }) => {
+    if (!api) return toast('API não carregada');
+
+    const cents = api.brlToCentsFromNumber(amount_reais);
+    if (!Number.isFinite(cents) || cents <= 0) return toast('Informe um valor válido');
+
+    try {
+      await api.createTransfer({
+        from_account_id,
+        to_account_id,
+        amount_cents: cents,
+        transfer_date
+      });
+      reset?.();
+      await fetchAndRender(items);
+      toast('Transferência realizada');
+    } catch (e) {
+      toast(e?.message || 'Erro ao transferir');
     }
   });
 
