@@ -82,6 +82,15 @@ function centsToText(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function toArrayPayload(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && Array.isArray(payload.items)) return payload.items;
@@ -179,27 +188,33 @@ function buildHorizonMonths(baseDate, monthsCount) {
   return Array.from({ length: monthsCount }, (_, i) => startOfMonth(addMonths(base, i)));
 }
 
-function computeProjection({ balanceCents, months, pending, overdue }) {
-  const startMonth = months[0];
+function computeProjection({ currentBalanceCents, months, allTransactions }) {
   const map = new Map(months.map((m) => [monthKey(m), { entradas: 0, saidas: 0 }]));
-  const firstKey = monthKey(startMonth);
+  let paidNetInHorizon = 0;
 
-  const addTx = (tx, forceKey) => {
+  const addTx = (tx) => {
+    const status = String(tx?.status || 'pending');
+    if (status === 'canceled') return;
+
     const type = String(tx?.type);
     const amount = Number(tx?.amount_cents) || 0;
-    const key = forceKey || monthKey(String(tx?.due_date || '').slice(0, 10) + 'T12:00:00');
+    const key = monthKey(String(tx?.due_date || '').slice(0, 10) + 'T12:00:00');
     const bucket = map.get(key);
     if (!bucket) return;
+
     if (type === 'expense') bucket.saidas += amount;
     else bucket.entradas += amount;
+
+    if (status === 'paid') {
+      paidNetInHorizon += type === 'expense' ? -amount : amount;
+    }
   };
 
-  // Pending: count on their due month
-  (Array.isArray(pending) ? pending : []).forEach((t) => addTx(t, null));
-  // Overdue: treat as expected to be resolved in the current month
-  (Array.isArray(overdue) ? overdue : []).forEach((t) => addTx(t, firstKey));
+  (Array.isArray(allTransactions) ? allTransactions : []).forEach((t) => addTx(t));
 
-  let acumulado = Number(balanceCents) || 0;
+  const openingBalance = (Number(currentBalanceCents) || 0) - paidNetInHorizon;
+
+  let acumulado = openingBalance;
   const rows = months.map((m) => {
     const key = monthKey(m);
     const b = map.get(key) || { entradas: 0, saidas: 0 };
@@ -216,7 +231,10 @@ function computeProjection({ balanceCents, months, pending, overdue }) {
     };
   });
 
-  return rows;
+  return {
+    rows,
+    opening_balance_cents: openingBalance
+  };
 }
 
 function renderProjection({ balanceCents, rows }) {
@@ -259,46 +277,68 @@ function renderProjection({ balanceCents, rows }) {
   });
 }
 
-function computeInsights({ rows, overdue, pending, lookups }) {
-  const titleEl = document.getElementById('insightTitle');
-  const descEl = document.getElementById('insightDesc');
+function statusLabel(status) {
+  const s = String(status || 'pending');
+  if (s === 'paid') return 'Efetivada';
+  if (s === 'overdue') return 'Vencida';
+  if (s === 'canceled') return 'Cancelada';
+  return 'Pendente';
+}
 
-  const firstNegative = (Array.isArray(rows) ? rows : []).find((r) => Number(r.saldo_acumulado_cents) < 0);
+function renderHistory(items) {
+  const body = document.getElementById('historyBody');
+  const empty = document.getElementById('historyEmpty');
+  if (!body) return;
 
-  // top expense category in horizon (pending + overdue)
-  const txs = [...(pending || []), ...(overdue || [])];
-  const byCat = new Map();
-  for (const t of txs) {
-    if (String(t.type) !== 'expense') continue;
-    const k = String(t.category_id ?? '');
-    byCat.set(k, (byCat.get(k) || 0) + (Number(t.amount_cents) || 0));
-  }
-  let topCat = null;
-  for (const [k, v] of byCat.entries()) {
-    if (!topCat || v > topCat.value) topCat = { key: k, value: v };
-  }
-  const topCatName = topCat?.key ? lookups?.categoriesById?.get(String(topCat.key)) : '';
+  body.querySelectorAll('.tx').forEach((n) => n.remove());
 
-  let title = 'Fluxo de Caixa Estável';
-  let desc = 'Suas projeções indicam estabilidade financeira nos próximos meses.';
+  const txs = (Array.isArray(items) ? items : [])
+    .filter((it) => String(it?.status || 'pending') !== 'canceled')
+    .slice()
+    .sort((a, b) => String(a?.due_date || '').localeCompare(String(b?.due_date || '')));
 
-  if (firstNegative) {
-    title = 'Atenção: risco de saldo negativo';
-    desc = `O saldo projetado fica negativo em ${firstNegative.mes}.`;
-  } else {
-    const end = rows?.[rows.length - 1];
-    if (end && Number(end.saldo_acumulado_cents) > Number(rows?.[0]?.saldo_acumulado_cents || 0)) {
-      title = 'Tendência positiva no horizonte';
-      desc = 'O saldo acumulado cresce ao longo dos próximos meses.';
-    }
+  if (!txs.length) {
+    if (empty) empty.style.display = 'grid';
+    return;
   }
 
-  if (topCatName && topCat?.value) {
-    desc += ` Maior saída prevista: ${topCatName} (${centsToText(topCat.value)}).`;
-  }
+  if (empty) empty.style.display = 'none';
 
-  if (titleEl) titleEl.textContent = title;
-  if (descEl) descEl.textContent = desc;
+  const frag = document.createDocumentFragment();
+
+  txs.forEach((it, idx) => {
+    const row = document.createElement('div');
+    row.className = 'tx';
+    row.style.animationDelay = `${idx * 20}ms`;
+
+    const isExpense = String(it.type) === 'expense';
+    const signPrefix = isExpense ? '-' : '+';
+    const moneyClass = isExpense ? 'money--bad' : 'money--good';
+    const valueText = `${signPrefix} ${centsToText(Number(it.amount_cents) || 0)}`;
+    const dueText = it?.due_date
+      ? new Intl.DateTimeFormat('pt-BR').format(new Date(String(it.due_date).slice(0, 10) + 'T12:00:00'))
+      : '';
+
+    row.innerHTML = `
+      <div class="tx__main">
+        <div class="tx__title">${escapeHtml(String(it.description || '(Sem descrição)'))}</div>
+        <div class="tx__meta">
+          <span class="pill pill--soft">${isExpense ? 'Despesa' : 'Receita'}</span>
+          ${it.category_name ? `<span class="pill">${escapeHtml(String(it.category_name))}</span>` : ''}
+          ${it.account_name ? `<span class="pill">${escapeHtml(String(it.account_name))}</span>` : ''}
+          <span class="pill">${escapeHtml(statusLabel(it.status))}</span>
+        </div>
+      </div>
+      <div class="tx__side">
+        <div class="tx__value money ${moneyClass}">${escapeHtml(valueText)}</div>
+        <div class="tx__date">${escapeHtml(dueText)}</div>
+      </div>
+    `;
+
+    frag.appendChild(row);
+  });
+
+  body.appendChild(frag);
 }
 
 function setupAnimations() {
@@ -391,7 +431,7 @@ async function loadAndRenderFluxo() {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
 
-  const [summary, lookups, pending, overdue] = await Promise.all([
+  const [summary, lookups, pending, overdue, paid] = await Promise.all([
     api.dashboardSummary({ month, year }),
     loadLookups(),
     listAllTransactions({
@@ -401,8 +441,12 @@ async function loadAndRenderFluxo() {
     }),
     listAllTransactions({
       status: 'overdue',
-      // include very old overdue too, but cap by horizon end
-      due_date_from: '1970-01-01',
+      due_date_from: isoDateLocal(currentMonthStart),
+      due_date_to: isoDateLocal(horizonEnd)
+    }),
+    listAllTransactions({
+      status: 'paid',
+      due_date_from: isoDateLocal(currentMonthStart),
       due_date_to: isoDateLocal(horizonEnd)
     })
   ]);
@@ -410,16 +454,17 @@ async function loadAndRenderFluxo() {
   const balanceCents = Number(summary?.balance_cents) || 0;
   const pendingHydrated = hydrateNames(pending, lookups);
   const overdueHydrated = hydrateNames(overdue, lookups);
+  const paidHydrated = hydrateNames(paid, lookups);
+  const allHydrated = [...pendingHydrated, ...overdueHydrated, ...paidHydrated];
 
-  const rows = computeProjection({
-    balanceCents,
+  const projection = computeProjection({
+    currentBalanceCents: balanceCents,
     months,
-    pending: pendingHydrated,
-    overdue: overdueHydrated
+    allTransactions: allHydrated
   });
 
-  renderProjection({ balanceCents, rows });
-  computeInsights({ rows, overdue: overdueHydrated, pending: pendingHydrated, lookups });
+  renderProjection({ balanceCents, rows: projection.rows });
+  renderHistory(allHydrated);
 
   window.__gippoFluxoExport = {
     generatedAt: new Date().toISOString(),
@@ -428,8 +473,9 @@ async function loadAndRenderFluxo() {
       start: isoDateLocal(currentMonthStart),
       end: isoDateLocal(horizonEnd)
     },
-    projections: rows,
+    projections: projection.rows,
     counts: {
+      paid: paidHydrated.length,
       pending: pendingHydrated.length,
       overdue: overdueHydrated.length
     }
@@ -452,8 +498,7 @@ function main() {
     if (!authed) {
       setUiEnabled(false);
       renderProjection({ balanceCents: 0, rows: [] });
-      document.getElementById('insightTitle') && (document.getElementById('insightTitle').textContent = 'Faça login para ver seus dados');
-      document.getElementById('insightDesc') && (document.getElementById('insightDesc').textContent = '');
+      renderHistory([]);
       window.GippoAuthGate?.open?.();
       return;
     }

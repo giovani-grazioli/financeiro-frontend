@@ -579,6 +579,7 @@ function renderList(items) {
           <div class="tx__value money ${moneyClass}">${valueText}</div>
           <div class="tx__date">Venc.: ${formatDate(it.due_date)}</div>
           <div class="tx__actions">
+            <button class="txBtn" type="button" data-act="edit" aria-label="Editar valor"><i class="bi bi-pencil"></i></button>
             <button class="txBtn txBtn--good" type="button" data-act="paid" aria-label="Marcar como pago"><i class="bi bi-check2-circle"></i></button>
             <button class="txBtn txBtn--bad" type="button" data-act="delete" aria-label="Excluir"><i class="bi bi-trash3"></i></button>
           </div>
@@ -778,6 +779,23 @@ function main() {
 
     const act = btn.getAttribute('data-act');
     try {
+      if (act === 'edit') {
+        const current = state.items.find((x) => String(x.id) === String(id));
+        const currentReais = ((Number(current?.amount_cents) || 0) / 100).toFixed(2).replace('.', ',');
+        const raw = prompt('Novo valor (ex: 123,45):', currentReais);
+        if (raw == null) return;
+
+        const valueReais = parseBRL(String(raw || ''));
+        const amount_cents = api.brlToCentsFromNumber(valueReais);
+        if (!Number.isFinite(amount_cents) || amount_cents <= 0) {
+          toast('Valor inválido');
+          return;
+        }
+
+        await api.patchTransaction(id, { amount_cents });
+        toast('Valor atualizado');
+      }
+
       if (act === 'delete') {
         const ok = confirm('Excluir esta pendência?');
         if (!ok) return;
