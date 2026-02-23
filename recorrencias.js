@@ -378,11 +378,11 @@ function main() {
       }
 
       if (act === 'cancel') {
-        const ok = confirm('Cancelar esta recorrência?');
+        const ok = confirm('Excluir esta recorrência?');
         if (!ok) return;
-        const cancelFuture = confirm('Também marcar ocorrências futuras como canceladas?');
-        await api.patchRecurringSeries(seriesId, { is_active: false, cancel_future: cancelFuture });
-        toast('Recorrência cancelada');
+        const res = await api.deleteRecurringSeries(seriesId);
+        const deleted = Number(res?.deleted_pending) || 0;
+        toast(deleted ? `Recorrência excluída (${deleted} pendentes removidos)` : 'Recorrência excluída');
         await load();
       }
     } catch (e) {

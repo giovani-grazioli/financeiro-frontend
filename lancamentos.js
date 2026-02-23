@@ -766,10 +766,11 @@ function setupForm(state, onCreated) {
           account_id: accountIdNum,
           category_id: categoryIdNum,
           type,
-          status: 'pending',
+          status: 'paid',
           amount_cents,
           description,
-          due_date
+          due_date,
+          paid_at: new Date().toISOString()
         });
         toast('Lançamento adicionado');
       }

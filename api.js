@@ -323,6 +323,13 @@
     });
   }
 
+  async function deleteRecurringSeries(seriesId) {
+    return await request(`/transactions/recurring-series/${encodeURIComponent(seriesId)}`, {
+      method: 'DELETE',
+      auth: true
+    });
+  }
+
   async function patchTransaction(id, patch) {
     return await request(`/transactions/${encodeURIComponent(id)}`, { method: 'PATCH', auth: true, body: patch });
   }
@@ -382,6 +389,7 @@
     listRecurringSeries,
     extendRecurringSeries,
     patchRecurringSeries,
+    deleteRecurringSeries,
     patchTransaction,
     deleteTransaction,
     markTransactionPaid,
