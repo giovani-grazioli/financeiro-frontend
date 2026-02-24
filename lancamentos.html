@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestão Financeira - Lançamentos</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -298,6 +299,75 @@
             <button class="btn btn--primary" type="submit" id="categoriaSubmit">
               <i class="bi bi-plus-circle" aria-hidden="true"></i>
               <span>Criar</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal" id="editTxModal" hidden>
+      <div class="modal__backdrop" id="editTxBackdrop" aria-hidden="true"></div>
+      <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="editTxTitle">
+        <div class="modal__header">
+          <div>
+            <div class="modal__kicker">LANÇAMENTOS</div>
+            <div class="modal__title" id="editTxTitle">Editar lançamento</div>
+          </div>
+          <button class="iconBtn" type="button" id="editTxClose" aria-label="Fechar">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <form class="modal__body" id="editTxForm">
+          <div id="editTxError" class="authError" hidden></div>
+
+          <div class="field">
+            <label class="field__label" for="editTxDescription">Descrição</label>
+            <div class="field__control">
+              <textarea
+                class="input input--textarea"
+                id="editTxDescription"
+                rows="2"
+                required
+                placeholder="Descrição do lançamento"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="form__row form__row--2" style="margin-top: 14px">
+            <div class="field">
+              <label class="field__label" for="editTxAmount">Valor</label>
+              <div class="field__control">
+                <input class="input" id="editTxAmount" inputmode="decimal" required placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="editTxDate">Data</label>
+              <div class="field__control">
+                <input class="input" id="editTxDate" type="date" required />
+                <span class="field__icon" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top: 14px">
+            <label class="field__label" for="editTxStatus">Status</label>
+            <div class="field__control">
+              <select class="input" id="editTxStatus" required>
+                <option value="pending">Pendente</option>
+                <option value="paid">Pago</option>
+                <option value="overdue">Vencido</option>
+              </select>
+              <span class="field__icon" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+            </div>
+          </div>
+
+          <div class="modal__footer" style="margin-top: 16px; padding: 0">
+            <button class="btn btn--soft" type="button" id="editTxCancel">Cancelar</button>
+            <button class="btn btn--primary" type="submit" id="editTxSubmit">
+              <i class="bi bi-check2-circle" aria-hidden="true"></i>
+              <span>Salvar</span>
             </button>
           </div>
         </form>

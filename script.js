@@ -82,6 +82,18 @@ function centsToText(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 }
 
+function parseBRLToCents(raw) {
+  if (typeof raw !== 'string') return NaN;
+  const cleaned = raw
+    .replace(/\s/g, '')
+    .replace(/R\$/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return NaN;
+  return Math.round(n * 100);
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -285,10 +297,14 @@ function statusLabel(status) {
   return 'Pendente';
 }
 
+let historyStateItems = [];
+
 function renderHistory(items) {
   const body = document.getElementById('historyBody');
   const empty = document.getElementById('historyEmpty');
   if (!body) return;
+
+  historyStateItems = Array.isArray(items) ? items.slice() : [];
 
   body.querySelectorAll('.tx').forEach((n) => n.remove());
 
@@ -310,6 +326,7 @@ function renderHistory(items) {
     const row = document.createElement('div');
     row.className = 'tx';
     row.style.animationDelay = `${idx * 20}ms`;
+    row.dataset.txId = String(it.id);
 
     const isExpense = String(it.type) === 'expense';
     const signPrefix = isExpense ? '-' : '+';
@@ -332,6 +349,11 @@ function renderHistory(items) {
       <div class="tx__side">
         <div class="tx__value money ${moneyClass}">${escapeHtml(valueText)}</div>
         <div class="tx__date">${escapeHtml(dueText)}</div>
+        <div class="tx__actions">
+          <button class="txBtn" type="button" data-act="edit" aria-label="Editar transação">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+        </div>
       </div>
     `;
 
@@ -339,6 +361,138 @@ function renderHistory(items) {
   });
 
   body.appendChild(frag);
+}
+
+function setHistoryEditError(msg) {
+  const errorEl = document.getElementById('historyEditError');
+  if (!errorEl) return;
+  if (!msg) {
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+    return;
+  }
+  errorEl.hidden = false;
+  errorEl.textContent = msg;
+}
+
+function findHistoryTxById(id) {
+  return historyStateItems.find((it) => String(it?.id) === String(id)) || null;
+}
+
+function setupHistoryEditor(onSaved) {
+  const modal = document.getElementById('historyEditModal');
+  const backdrop = document.getElementById('historyEditBackdrop');
+  const btnClose = document.getElementById('historyEditClose');
+  const btnCancel = document.getElementById('historyEditCancel');
+  const form = document.getElementById('historyEditForm');
+  const submitBtn = document.getElementById('historyEditSubmit');
+  const historyBody = document.getElementById('historyBody');
+
+  if (!modal || !form || !historyBody) return;
+
+  let editingTxId = null;
+
+  const close = () => {
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    editingTxId = null;
+    setHistoryEditError('');
+  };
+
+  const open = (tx) => {
+    const descriptionEl = document.getElementById('historyEditDescription');
+    const amountEl = document.getElementById('historyEditAmount');
+    const dateEl = document.getElementById('historyEditDate');
+    const statusEl = document.getElementById('historyEditStatus');
+    if (!descriptionEl || !amountEl || !dateEl || !statusEl) return;
+
+    editingTxId = String(tx.id);
+    descriptionEl.value = String(tx.description || '');
+    amountEl.value = (Number(tx.amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+    dateEl.value = String(tx.due_date || '').slice(0, 10);
+    statusEl.value = String(tx.status || 'pending');
+
+    setHistoryEditError('');
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => descriptionEl.focus(), 0);
+  };
+
+  btnClose?.addEventListener('click', close);
+  btnCancel?.addEventListener('click', close);
+  backdrop?.addEventListener('click', close);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !modal.hidden) close();
+  });
+
+  historyBody.addEventListener('click', (ev) => {
+    const btn = ev.target?.closest?.('button[data-act="edit"]');
+    if (!btn) return;
+    const row = btn.closest('.tx');
+    const txId = row?.dataset?.txId;
+    if (!txId) return;
+    const tx = findHistoryTxById(txId);
+    if (!tx) return;
+    open(tx);
+  });
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const api = window.GippoAPI;
+    if (!api) {
+      setHistoryEditError('API não carregada.');
+      return;
+    }
+    if (!editingTxId) {
+      setHistoryEditError('Transação não identificada.');
+      return;
+    }
+
+    const currentTx = findHistoryTxById(editingTxId);
+    if (!currentTx) {
+      setHistoryEditError('Transação não encontrada no histórico atual.');
+      return;
+    }
+
+    const description = String(document.getElementById('historyEditDescription')?.value || '').trim();
+    const amount_cents = parseBRLToCents(String(document.getElementById('historyEditAmount')?.value || ''));
+    const due_date = String(document.getElementById('historyEditDate')?.value || '').trim();
+    const status = String(document.getElementById('historyEditStatus')?.value || 'pending');
+
+    if (!description) {
+      setHistoryEditError('Informe a descrição.');
+      return;
+    }
+    if (!due_date) {
+      setHistoryEditError('Informe a data.');
+      return;
+    }
+    if (!Number.isFinite(amount_cents) || amount_cents <= 0) {
+      setHistoryEditError('Informe um valor válido.');
+      return;
+    }
+
+    const patch = { description, amount_cents, due_date, status };
+    if (status === 'paid' && String(currentTx.status) !== 'paid') {
+      patch.paid_at = new Date().toISOString();
+    }
+    if (status !== 'paid') {
+      patch.paid_at = null;
+    }
+
+    try {
+      setHistoryEditError('');
+      if (submitBtn) submitBtn.disabled = true;
+      await api.patchTransaction(editingTxId, patch);
+      close();
+      toast('Transação atualizada');
+      await onSaved?.();
+    } catch (e) {
+      setHistoryEditError(e?.message || 'Erro ao atualizar transação.');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
 }
 
 function setupAnimations() {
@@ -488,6 +642,9 @@ function main() {
   setupRipple();
   setupSidebarToggle();
   setupQuickActions();
+  setupHistoryEditor(async () => {
+    await loadAndRenderFluxo();
+  });
 
   document.getElementById('btnExport')?.addEventListener('click', exportData);
 
