@@ -71,7 +71,15 @@ function injectToastStyles() {
 }
 
 function setUiEnabled(enabled) {
-  [document.getElementById('btnExport'), ...document.querySelectorAll('.quickItem')]
+  [
+    document.getElementById('btnExport'),
+    ...document.querySelectorAll('.quickItem'),
+    document.getElementById('historySearch'),
+    document.getElementById('historyDateFrom'),
+    document.getElementById('historyDateTo'),
+    document.getElementById('historyPrev'),
+    document.getElementById('historyNext')
+  ]
     .filter(Boolean)
     .forEach((el) => (el.disabled = !enabled));
 }
@@ -93,6 +101,8 @@ function parseBRLToCents(raw) {
   if (!Number.isFinite(n)) return NaN;
   return Math.round(n * 100);
 }
+
+const HISTORY_PAGE_SIZE = 10;
 
 function escapeHtml(s) {
   return String(s)
@@ -298,20 +308,111 @@ function statusLabel(status) {
 }
 
 let historyStateItems = [];
+const historyView = {
+  q: '',
+  dateFrom: '',
+  dateTo: '',
+  pageIndex: 0,
+  filteredCount: 0
+};
+
+function normalizeSearch(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function buildTxSearchBlob(it) {
+  const amountCents = Number(it?.amount_cents) || 0;
+  const amountNum = (amountCents / 100).toFixed(2);
+  const amountPt = amountNum.replace('.', ',');
+  const amountMoney = centsToText(amountCents);
+  const due = String(it?.due_date || '').slice(0, 10);
+
+  return normalizeSearch(
+    [
+      it?.description,
+      it?.category_name,
+      it?.account_name,
+      it?.type === 'expense' ? 'despesa' : 'receita',
+      statusLabel(it?.status),
+      it?.status,
+      amountNum,
+      amountPt,
+      amountMoney,
+      due
+    ].join(' ')
+  );
+}
+
+function applyHistoryFilters(items, view) {
+  const q = normalizeSearch(view?.q || '');
+  const from = String(view?.dateFrom || '').slice(0, 10);
+  const to = String(view?.dateTo || '').slice(0, 10);
+
+  return (Array.isArray(items) ? items : []).filter((it) => {
+    if (String(it?.status || 'pending') === 'canceled') return false;
+
+    const due = String(it?.due_date || '').slice(0, 10);
+    if (from && (!due || due < from)) return false;
+    if (to && (!due || due > to)) return false;
+
+    if (q) {
+      const blob = buildTxSearchBlob(it);
+      if (!blob.includes(q)) return false;
+    }
+
+    return true;
+  });
+}
+
+function renderHistoryPager(view) {
+  const pager = document.getElementById('historyPager');
+  const info = document.getElementById('historyPagerInfo');
+  const prevBtn = document.getElementById('historyPrev');
+  const nextBtn = document.getElementById('historyNext');
+  if (!pager || !info || !prevBtn || !nextBtn) return;
+
+  const total = Number(view?.filteredCount) || 0;
+  const pageIndex = Number(view?.pageIndex) || 0;
+  const pages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+  const hasPrev = pageIndex > 0;
+  const hasNext = pageIndex + 1 < pages;
+
+  pager.hidden = total <= HISTORY_PAGE_SIZE;
+  prevBtn.disabled = !hasPrev;
+  nextBtn.disabled = !hasNext;
+  info.textContent = total ? `Página ${pageIndex + 1} de ${pages}` : '';
+}
+
+function renderHistoryFromState() {
+  const sorted = historyStateItems
+    .slice()
+    .sort((a, b) => String(a?.due_date || '').localeCompare(String(b?.due_date || '')));
+  const filtered = applyHistoryFilters(sorted, historyView);
+
+  historyView.filteredCount = filtered.length;
+
+  const pages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+  if (historyView.pageIndex > pages - 1) historyView.pageIndex = pages - 1;
+
+  const start = historyView.pageIndex * HISTORY_PAGE_SIZE;
+  const paged = filtered.slice(start, start + HISTORY_PAGE_SIZE);
+
+  renderHistory(paged);
+  renderHistoryPager(historyView);
+}
 
 function renderHistory(items) {
   const body = document.getElementById('historyBody');
   const empty = document.getElementById('historyEmpty');
   if (!body) return;
 
-  historyStateItems = Array.isArray(items) ? items.slice() : [];
-
   body.querySelectorAll('.tx').forEach((n) => n.remove());
 
-  const txs = (Array.isArray(items) ? items : [])
-    .filter((it) => String(it?.status || 'pending') !== 'canceled')
-    .slice()
-    .sort((a, b) => String(a?.due_date || '').localeCompare(String(b?.due_date || '')));
+  const txs = Array.isArray(items) ? items : [];
 
   if (!txs.length) {
     if (empty) empty.style.display = 'grid';
@@ -495,6 +596,48 @@ function setupHistoryEditor(onSaved) {
   });
 }
 
+function setupHistoryFilters() {
+  const searchEl = document.getElementById('historySearch');
+  const fromEl = document.getElementById('historyDateFrom');
+  const toEl = document.getElementById('historyDateTo');
+  const prevBtn = document.getElementById('historyPrev');
+  const nextBtn = document.getElementById('historyNext');
+
+  let searchTimer = null;
+
+  searchEl?.addEventListener('input', () => {
+    if (searchTimer) window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      historyView.q = String(searchEl.value || '');
+      historyView.pageIndex = 0;
+      renderHistoryFromState();
+    }, 260);
+  });
+
+  const onDateChange = () => {
+    historyView.dateFrom = String(fromEl?.value || '');
+    historyView.dateTo = String(toEl?.value || '');
+    historyView.pageIndex = 0;
+    renderHistoryFromState();
+  };
+
+  fromEl?.addEventListener('change', onDateChange);
+  toEl?.addEventListener('change', onDateChange);
+
+  prevBtn?.addEventListener('click', () => {
+    if (historyView.pageIndex <= 0) return;
+    historyView.pageIndex -= 1;
+    renderHistoryFromState();
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    const pages = Math.max(1, Math.ceil((Number(historyView.filteredCount) || 0) / HISTORY_PAGE_SIZE));
+    if (historyView.pageIndex + 1 >= pages) return;
+    historyView.pageIndex += 1;
+    renderHistoryFromState();
+  });
+}
+
 function setupAnimations() {
   const els = [...document.querySelectorAll('[data-anim]')];
   const io = new IntersectionObserver(
@@ -610,6 +753,7 @@ async function loadAndRenderFluxo() {
   const overdueHydrated = hydrateNames(overdue, lookups);
   const paidHydrated = hydrateNames(paid, lookups);
   const allHydrated = [...pendingHydrated, ...overdueHydrated, ...paidHydrated];
+  historyStateItems = allHydrated.slice();
 
   const projection = computeProjection({
     currentBalanceCents: balanceCents,
@@ -618,7 +762,7 @@ async function loadAndRenderFluxo() {
   });
 
   renderProjection({ balanceCents, rows: projection.rows });
-  renderHistory(allHydrated);
+  renderHistoryFromState();
 
   window.__gippoFluxoExport = {
     generatedAt: new Date().toISOString(),
@@ -642,6 +786,7 @@ function main() {
   setupRipple();
   setupSidebarToggle();
   setupQuickActions();
+  setupHistoryFilters();
   setupHistoryEditor(async () => {
     await loadAndRenderFluxo();
   });
@@ -655,7 +800,10 @@ function main() {
     if (!authed) {
       setUiEnabled(false);
       renderProjection({ balanceCents: 0, rows: [] });
-      renderHistory([]);
+      historyStateItems = [];
+      historyView.pageIndex = 0;
+      historyView.filteredCount = 0;
+      renderHistoryFromState();
       window.GippoAuthGate?.open?.();
       return;
     }
