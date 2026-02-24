@@ -178,11 +178,50 @@
           </div>
 
           <section class="recent" data-anim>
-            <h2 class="recent__title">Histórico de Transações (efetivadas e pendentes)</h2>
+            <div class="recent__head">
+              <h2 class="recent__title">Histórico de Transações (efetivadas e pendentes)</h2>
+
+              <div class="recent__tools">
+                <div class="field__control recentSearch">
+                  <input
+                    class="input"
+                    id="historySearch"
+                    type="search"
+                    placeholder="Pesquisar por descrição, conta, categoria, valor, status..."
+                    autocomplete="off"
+                  />
+                  <span class="field__icon" aria-hidden="true"><i class="bi bi-search"></i></span>
+                </div>
+
+                <div class="field__control" style="min-width: 160px">
+                  <input class="input" id="historyDateFrom" type="date" aria-label="Data inicial" />
+                  <span class="field__icon" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+                </div>
+
+                <div class="field__control" style="min-width: 160px">
+                  <input class="input" id="historyDateTo" type="date" aria-label="Data final" />
+                  <span class="field__icon" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+                </div>
+              </div>
+            </div>
 
             <section class="card recentCard">
               <div class="recentCard__body" id="historyBody">
                 <div class="empty" id="historyEmpty">Nenhuma transação encontrada no período.</div>
+              </div>
+
+              <div class="recentCard__footer" id="historyPager" hidden>
+                <div class="pagerInfo" id="historyPagerInfo"></div>
+                <div class="pagerBtns">
+                  <button class="miniBtn" id="historyPrev" type="button">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    <span>Anterior</span>
+                  </button>
+                  <button class="miniBtn" id="historyNext" type="button">
+                    <span>Próximo</span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                  </button>
+                </div>
               </div>
             </section>
           </section>
