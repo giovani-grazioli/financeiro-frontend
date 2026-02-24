@@ -326,6 +326,18 @@ function getStatusView(status) {
   return { label: 'Pendente', pillClass: 'pill pill--soft' };
 }
 
+function setEditTxError(msg) {
+  const el = document.getElementById('editTxError');
+  if (!el) return;
+  if (!msg) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+  el.hidden = false;
+  el.textContent = msg;
+}
+
 function normalizeRecurringSeriesId(value) {
   if (value === null || value === undefined) return '';
   const s = String(value).trim();
@@ -381,6 +393,7 @@ function renderRecent(items) {
         <div class="tx__value money ${moneyClass}">${valueText}</div>
         <div class="tx__date">${formatDate(it.due_date)}</div>
         <div class="tx__actions">
+          <button class="txBtn" type="button" data-act="edit" aria-label="Editar lançamento"><i class="bi bi-pencil-square"></i></button>
           ${it.status !== 'paid' ? '<button class="txBtn txBtn--good" type="button" data-act="paid" aria-label="Marcar como pago"><i class="bi bi-check2-circle"></i></button>' : '<button class="txBtn" type="button" data-act="pending" aria-label="Marcar como pendente"><i class="bi bi-arrow-counterclockwise"></i></button>'}
           ${hasSeries ? '<button class="txBtn" type="button" data-act="extend-series" aria-label="Estender recorrência (+12 meses)"><i class="bi bi-calendar-plus"></i></button>' : ''}
           ${hasSeries ? '<button class="txBtn" type="button" data-act="cancel-series" aria-label="Cancelar recorrência"><i class="bi bi-slash-circle"></i></button>' : ''}
@@ -651,6 +664,128 @@ async function exportAllTransactions() {
   return all;
 }
 
+function setupRecentEditor({ getItems, onSaved }) {
+  const modal = document.getElementById('editTxModal');
+  const backdrop = document.getElementById('editTxBackdrop');
+  const btnClose = document.getElementById('editTxClose');
+  const btnCancel = document.getElementById('editTxCancel');
+  const form = document.getElementById('editTxForm');
+  const submitBtn = document.getElementById('editTxSubmit');
+  const recentBody = document.getElementById('recentBody');
+
+  if (!modal || !form || !recentBody) return;
+
+  let editingTxId = null;
+
+  const close = () => {
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    editingTxId = null;
+    setEditTxError('');
+  };
+
+  const findById = (id) => {
+    const items = Array.isArray(getItems?.()) ? getItems() : [];
+    return items.find((it) => String(it?.id) === String(id)) || null;
+  };
+
+  const open = (tx) => {
+    const descriptionEl = document.getElementById('editTxDescription');
+    const amountEl = document.getElementById('editTxAmount');
+    const dateEl = document.getElementById('editTxDate');
+    const statusEl = document.getElementById('editTxStatus');
+    if (!descriptionEl || !amountEl || !dateEl || !statusEl) return;
+
+    editingTxId = String(tx.id);
+    descriptionEl.value = String(tx.description || '');
+    amountEl.value = (Number(tx.amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+    dateEl.value = String(tx.due_date || '').slice(0, 10);
+    statusEl.value = String(tx.status || 'pending');
+
+    setEditTxError('');
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => descriptionEl.focus(), 0);
+  };
+
+  btnClose?.addEventListener('click', close);
+  btnCancel?.addEventListener('click', close);
+  backdrop?.addEventListener('click', close);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !modal.hidden) close();
+  });
+
+  recentBody.addEventListener('click', (ev) => {
+    const btn = ev.target?.closest?.('button[data-act="edit"]');
+    if (!btn) return;
+    const row = btn.closest('.tx');
+    const txId = row?.dataset?.txId;
+    if (!txId) return;
+    const tx = findById(txId);
+    if (!tx) return;
+    open(tx);
+  });
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const api = window.GippoAPI;
+    if (!api) {
+      setEditTxError('API não carregada.');
+      return;
+    }
+    if (!editingTxId) {
+      setEditTxError('Lançamento não identificado.');
+      return;
+    }
+
+    const currentTx = findById(editingTxId);
+    if (!currentTx) {
+      setEditTxError('Lançamento não encontrado.');
+      return;
+    }
+
+    const description = String(document.getElementById('editTxDescription')?.value || '').trim();
+    const amountReais = parseBRL(String(document.getElementById('editTxAmount')?.value || ''));
+    const due_date = String(document.getElementById('editTxDate')?.value || '').trim();
+    const status = String(document.getElementById('editTxStatus')?.value || 'pending');
+    const amount_cents = api.brlToCentsFromNumber(amountReais);
+
+    if (!description) {
+      setEditTxError('Informe a descrição.');
+      return;
+    }
+    if (!due_date) {
+      setEditTxError('Informe a data.');
+      return;
+    }
+    if (!Number.isFinite(amount_cents) || amount_cents <= 0) {
+      setEditTxError('Informe um valor válido.');
+      return;
+    }
+
+    const patch = { description, amount_cents, due_date, status };
+    if (status === 'paid' && String(currentTx.status) !== 'paid') {
+      patch.paid_at = new Date().toISOString();
+    }
+    if (status !== 'paid') {
+      patch.paid_at = null;
+    }
+
+    try {
+      if (submitBtn) submitBtn.disabled = true;
+      setEditTxError('');
+      await api.patchTransaction(editingTxId, patch);
+      close();
+      toast('Lançamento atualizado');
+      await onSaved?.();
+    } catch (e) {
+      setEditTxError(e?.message || 'Erro ao atualizar lançamento.');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
 function setupForm(state, onCreated) {
   const api = window.GippoAPI;
   const form = document.getElementById('formLancamento');
@@ -799,6 +934,14 @@ function main() {
   let recentItems = [];
   const recentView = { q: '', pageIndex: 0, cursors: [null], nextCursor: null, loading: false };
 
+  setupRecentEditor({
+    getItems: () => recentItems,
+    onSaved: async () => {
+      await loadAndRenderRecent();
+      await refreshSaldo();
+    }
+  });
+
   function resetRecentView() {
     recentView.pageIndex = 0;
     recentView.cursors = [null];
@@ -839,6 +982,10 @@ function main() {
         if (!ok) return;
         await api.deleteTransaction(id);
         toast('Lançamento removido');
+      }
+
+      if (act === 'edit') {
+        return;
       }
 
       if (act === 'paid') {

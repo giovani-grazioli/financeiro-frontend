@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestão Financeira - Fluxo de Caixa</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -192,6 +193,76 @@
     <script src="runtime-config.js"></script>
     <script src="api.js"></script>
     <script src="auth-gate.js"></script>
+
+    <div class="modal" id="historyEditModal" hidden>
+      <div class="modal__backdrop" id="historyEditBackdrop" aria-hidden="true"></div>
+      <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="historyEditTitle">
+        <div class="modal__header">
+          <div>
+            <div class="modal__kicker">HISTÓRICO</div>
+            <div class="modal__title" id="historyEditTitle">Editar transação</div>
+          </div>
+          <button class="iconBtn" type="button" id="historyEditClose" aria-label="Fechar">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <form class="modal__body" id="historyEditForm">
+          <div id="historyEditError" class="authError" hidden></div>
+
+          <div class="field">
+            <label class="field__label" for="historyEditDescription">Descrição</label>
+            <div class="field__control">
+              <textarea
+                class="input input--textarea"
+                id="historyEditDescription"
+                rows="2"
+                required
+                placeholder="Descrição do lançamento"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="form__row form__row--2" style="margin-top: 14px">
+            <div class="field">
+              <label class="field__label" for="historyEditAmount">Valor</label>
+              <div class="field__control">
+                <input class="input" id="historyEditAmount" inputmode="decimal" required placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="historyEditDate">Data</label>
+              <div class="field__control">
+                <input class="input" id="historyEditDate" type="date" required />
+                <span class="field__icon" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top: 14px">
+            <label class="field__label" for="historyEditStatus">Status</label>
+            <div class="field__control">
+              <select class="input" id="historyEditStatus" required>
+                <option value="pending">Pendente</option>
+                <option value="paid">Efetivada</option>
+                <option value="overdue">Vencida</option>
+              </select>
+              <span class="field__icon" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+            </div>
+          </div>
+
+          <div class="modal__footer" style="margin-top: 16px; padding: 0">
+            <button class="btn btn--soft" type="button" id="historyEditCancel">Cancelar</button>
+            <button class="btn btn--primary" type="submit" id="historyEditSubmit">
+              <i class="bi bi-check2-circle" aria-hidden="true"></i>
+              <span>Salvar</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="script.js"></script>
   </body>
 </html>
