@@ -102,7 +102,7 @@ function parseBRLToCents(raw) {
   return Math.round(n * 100);
 }
 
-const HISTORY_PAGE_SIZE = 10;
+const HISTORY_PAGE_SIZE = 6;
 
 function escapeHtml(s) {
   return String(s)

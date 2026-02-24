@@ -221,6 +221,16 @@ body{
 .miniBtn:active{transform: translateY(0px) scale(.99)}
 .miniBtn i{font-size: 14px}
 
+.miniBtn--clean{
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  box-shadow: none;
+  font-weight: 700;
+}
+.miniBtn--clean:hover{background:#f8fafc; transform:none}
+.miniBtn--clean:active{transform:none}
+
 .btn{
   border:0;
   cursor:pointer;
@@ -428,6 +438,19 @@ select.input{appearance:none; -webkit-appearance:none; -moz-appearance:none;}
 .recent__title{margin:0; font-size:18px; font-weight:900; letter-spacing:-.02em}
 .recent__tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 .recentSearch{min-width: 260px; max-width: 440px; width: min(440px, 100%);}
+.historyTools{
+  display:grid;
+  grid-template-columns: minmax(280px, 1.6fr) minmax(160px, .7fr) minmax(160px, .7fr);
+  gap:10px;
+  align-items:center;
+  width:min(900px, 100%);
+}
+.historyTools .recentSearch{
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+.historyTools__date{min-width: 0}
 .recentCard{min-height: 260px}
 .recentCard__body{padding: 22px;}
 .recentCard__footer{
@@ -943,11 +966,18 @@ select.input{appearance:none; -webkit-appearance:none; -moz-appearance:none;}
   .brand__text{display:none}
   .nav__label{display:none}
   .totalCard{display:none}
+  .cardsRow{grid-template-columns: repeat(2, minmax(0, 1fr));}
 }
 
 @media (max-width: 900px){
+  .main{padding:16px 14px 20px}
+  .topbar{flex-direction:column; align-items:stretch}
+  .topbar__actions{justify-content:flex-start}
+  .cardsRow{grid-template-columns: 1fr}
   .contentRow{grid-template-columns: 1fr}
   .rightCol{grid-template-columns: 1fr}
+  .recent__head{align-items:stretch}
+  .historyTools{grid-template-columns: 1fr}
   .form__row--2{grid-template-columns: 1fr;}
   .contasForm{grid-template-columns: 1fr;}
   .pend__filters{flex-direction:column; align-items:stretch}
